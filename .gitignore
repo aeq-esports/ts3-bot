@@ -1,0 +1,23 @@
+# Ignore configuration files
+/ts3-bot-core/src/main/resources/aeq-ts3-bot-configuration.xml
+/ts3-bot-core/src/main/resources/application.properties
+
+# User-specific:
+.idea/
+*.iml
+
+# Compiled class file
+*.class
+
+# Log file
+*.log
+
+# Package Files
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+

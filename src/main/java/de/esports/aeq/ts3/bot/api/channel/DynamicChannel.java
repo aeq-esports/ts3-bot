@@ -1,10 +1,12 @@
 package de.esports.aeq.ts3.bot.api.channel;
 
-import com.github.theholywaffle.teamspeak3.TS3ApiAsync;
-import com.github.theholywaffle.teamspeak3.api.ChannelProperty;
-import com.github.theholywaffle.teamspeak3.api.event.TS3EventAdapter;
+import com.github.theholywaffle.teamspeak3.api.event.ChannelCreateEvent;
+import com.github.theholywaffle.teamspeak3.api.event.ChannelDeletedEvent;
 import com.github.theholywaffle.teamspeak3.api.wrapper.Channel;
 import com.github.theholywaffle.teamspeak3.api.wrapper.ChannelBase;
+import de.esports.aeq.ts3.bot.api.BotListenerAdapter;
+import de.esports.aeq.ts3.bot.api.TS3Bot;
+import de.esports.aeq.ts3.bot.api.cache.ClientMoveEvent;
 import de.esports.aeq.ts3.bot.util.StringTransformer;
 import org.intellij.lang.annotations.Language;
 import org.slf4j.Logger;
@@ -13,25 +15,51 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.function.Function;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
-public class DynamicChannel extends TS3EventAdapter {
+/**
+ * Represents a channel that belongs to a group of dynamically generated channels.
+ * <p>
+ * Each group will be altered, depending on its configuration, resulting in channels being added or
+ * removed from the group on the fly to reduce the total amount of channels needed and reduce
+ * administrative effort.
+ * <p>
+ * Consider the following example:
+ * <ul>
+ * <li>ChannelTemplate 1</li>
+ * <ul>
+ * <li>ChannelTemplate A (3/5)</li>
+ * <li>ChannelTemplate B (0/5)</li>
+ * <li>ChannelTemplate C (0/5)</li>
+ * </ul>
+ * </ul>
+ * ChannelTemplate A is half full while channel B and C are empty. Therefore, channel C can be deleted,
+ * since clients could also join the empty channel B. If channel A and B are occupied, channel C can
+ * be created again.
+ *
+ * @since 1.0
+ */
+public class DynamicChannel extends BotListenerAdapter {
 
     private static final Logger LOG = LoggerFactory.getLogger(DynamicChannel.class);
 
     @Language("RegExp")
     private static final String COMMAND_REGEX = "\\{.*}";
 
-    private TS3ApiAsync apiAsync;
+    private TS3Bot bot;
     private DynamicChannelConfig config;
 
-    private Map<Integer, ChannelBase> channels = new HashMap<>();
-    private Map<Integer, Integer> channelSizeMap = new HashMap<>();
+    /**
+     * Stores the current channel ids mapped to this dynamic channel.
+     */
+    private Set<Integer> channelIds = new HashSet<>();
 
+    /**
+     * Precompiled pattern to improve performance.
+     */
     private Pattern channelNamePattern;
 
-    public DynamicChannel(TS3ApiAsync apiAsync, DynamicChannelConfig config) {
-        this.apiAsync = apiAsync;
+    public DynamicChannel(TS3Bot bot, DynamicChannelConfig config) {
+        this.bot = bot;
         this.config = config;
         channelNamePattern = buildChannelNamePattern(config.getNamePattern());
     }
@@ -55,95 +83,51 @@ public class DynamicChannel extends TS3EventAdapter {
         };
     }
 
-    /**
-     * Initializes this dynamic channel with the provided collection of channels.
-     * <p>
-     * Before updating, the provided collection will be filtered using {@link
-     * #matchesChannel(ChannelBase)} to guarantee that each channel is part is this dynamic
-     * channel.
-     *
-     * @param channels a {@link Collection} of channels to be updated
-     */
-    public void initialize(Collection<? extends Channel> channels) {
-        Objects.requireNonNull(channels);
-        channels.stream().filter(this::matchesChannel).forEach(this::registerChannel);
-        handleChanges();
+    @Override
+    public void onChannelCreate(ChannelCreateEvent e) {
+        update(e.getChannelId());
     }
 
-    private void handleChanges() {
-        resize();
-        optimizeChannels();
+    @Override
+    public void onChannelDeleted(ChannelDeletedEvent e) {
+        remove(e.getChannelId());
     }
 
-    private void resize() {
-        int difference = config.getAmountOfEmptyChannels() - getAmountOfEmptyChannels();
-        if (difference > 0) {
-            int amount = channels.size() + difference - config.getMaximumChannels();
-            if (amount > 0) createChannels(amount);
-        } else if (difference < 0) {
-            int amount = channels.size() - difference - config.getMaximumChannels();
-            if (amount > 0) deleteChannels(amount);
+    @Override
+    public void onClientMoveEvent(ClientMoveEvent event) {
+        if (!event.isLeaveEvent()) {
+            update(event.getChannelId());
         }
+        bot.getCache().getPreviousMoveEvent(event).ifPresent(e -> update(e.getChannelId()));
     }
 
-    private void optimizeChannels() {
-        List<ChannelBase> sortedChannels = channels.values().stream()
-                .sorted(Comparator.comparing(ChannelBase::getName))
-                .collect(Collectors.toList());
-        // TODO
-    }
-
-    private int getAmountOfEmptyChannels() {
-        return (int) channelSizeMap.values().stream().filter(i -> i > 0).count();
-    }
-
-    private void createChannels(int amount) {
-        ChannelFactory factory = null;
-        while (amount > 0) {
-            createChannel(factory.getNext());
-            amount--;
-        }
-    }
-
-    private void deleteChannels(int amount) {
-        channels.values().stream().sorted(Comparator.comparing(ChannelBase::getName)).limit(amount)
-                .forEach(this::deleteChannel);
-    }
-
-    private void createChannel(ChannelTemplate template) {
-        apiAsync.createChannel(template.getName(), template.asMap())
-                .onSuccess(id -> {
-                    if (LOG.isInfoEnabled()) {
-                        LOG.info("Dynamic channel with id {} has been added from configuration {}",
-                                id, config.toString());
-                    }
-                })
-                .onFailure(e -> LOG
-                        .error("Cannot create channel with configuration {}", template.toString
-                                (), e));
-    }
-
-    /**
-     * Updates a channel of this dynamic channel.
-     * <p>
-     * This method, or any other update method, should be called whenever the totals amount of
-     * clients of any channel that belongs to this dynamic channel have changed.
-     * <p>
-     * In addition, this method also updates the internal snapshot of the specified channel. Use
-     * this method whenever the original channel has been modified.
-     *
-     * @param channel the channel
-     * @throws DynamicChannelException if the dynamic channel cannot be updated
-     */
-    public void update(Channel channel) throws DynamicChannelException {
+    public void update(Channel channel) {
         Objects.requireNonNull(channel);
-        if (!matchesChannel(channel)) {
-            throw new DynamicChannelException("ChannelTemplate does not match the dynamic channel" +
-                    " " +
-                    "configuration");
+        if (matches(channel)) {
+            channelIds.add(channel.getId());
+            handleChanges();
         }
-        registerChannel(channel);
+    }
+
+    private void update(int channelId) {
+        if (matches(channelId)) {
+            channelIds.add(channelId);
+            handleChanges();
+        }
+    }
+
+    private void update(Collection<Integer> channelIds) {
+        this.channelIds.stream().filter(this::matches).forEach(channelIds::add);
         handleChanges();
+    }
+
+    private void remove(int channelId) {
+        channelIds.remove(channelId);
+        bot.getApiAsync().deleteChannel(channelId);
+    }
+
+    private boolean matches(int channelId) {
+        return bot.getCache().getChannel(channelId).filter(this::matches).isPresent();
     }
 
     /**
@@ -165,51 +149,55 @@ public class DynamicChannel extends TS3EventAdapter {
      * @return <code>true</code> if this channel matches the configuration of this dynamic channel,
      * otherwise <code>false</code>
      */
-    public boolean matchesChannel(ChannelBase channel) {
-        return channel.getParentChannelId() != config.getChannelId() &&
-                (channelNamePattern.matcher(channel.getName()).matches() || matches(channel.getId
-                        ()));
+    private boolean matches(ChannelBase channel) {
+        return channel.getParentChannelId() == config.getChannelId() &&
+                channelNamePattern.matcher(channel.getName()).matches();
     }
 
-    private void registerChannel(Channel channel) {
-        this.channels.put(channel.getId(), channel);
-        channelSizeMap.put(channel.getId(), channel.getTotalClients());
+    private void handleChanges() {
+        synchronized (this) {
+            resize();
+            optimizeChannels();
+        }
     }
 
-    private boolean matches(int channelId) {
-        // TODO return config.getChannelIds().contains(channelId);
-        return false;
+    private void resize() {
+        Collection<Channel> channels = bot.getCache().getChannels(channelIds);
+
+        // The total size of each channel is not updated, so we have to fetch it
+        Map<ChannelBase, Integer> map = new HashMap<>();
+        for (ChannelBase channel : channels) {
+            int size = bot.getCache().getTotalClients(channel.getId());
+            map.put(channel, size);
+        }
+
+        int emptyChannels = (int) map.values().stream().filter(i -> i > 0).count();
+        int difference = config.getAmountOfEmptyChannels() - emptyChannels;
+        if (difference > 0) {
+            int amount = map.size() + difference - config.getMaximumChannels();
+            if (amount > 0) createChannels(amount, map.keySet());
+        } else if (difference < 0) {
+            int amount = map.size() - difference - config.getMaximumChannels();
+            if (amount > 0) deleteChannels(amount, map.keySet());
+        }
     }
 
-    /**
-     * Updates a channel of this dynamic channel that matches the given channel id.
-     * <p>
-     * This method, or any other update method, should be called whenever the totals amount of
-     * clients of any channel that belongs to this dynamic channel have changed.
-     * <p>
-     * Please note that assumes that there have been <b>no changes</b> made to the original channel.
-     * Otherwise, this method may produce unexpected results.
-     *
-     * @param channelId    the channel id
-     * @param totalClients the new total amount of clients
-     */
-    public void update(int channelId, int totalClients) {
-        channelSizeMap.put(channelId, totalClients);
-        handleChanges();
+    private void optimizeChannels() {
+        // TODO sort by name
     }
 
-    private void deleteChannel(ChannelBase channel) {
-
+    private void createChannels(int amount, Collection<? extends ChannelBase> present) {
+        ChannelFactory factory = null;
+        while (amount > 0) {
+            ChannelTemplate template = factory.getNext(present);
+            bot.getApiAsync().createChannel(template.getName(), template.asMap());
+            amount--;
+        }
     }
 
-    private void editChannel(int channelId, Map<ChannelProperty, String> properties) {
-        apiAsync.editChannel(channelId, properties)
-                .onSuccess(
-                        result -> LOG.info("Successfully edited channel with id {} using " +
-                                        "properties {}",
-                                channelId, properties.toString()))
-                .onFailure(e -> LOG.error("Cannot edit channel with id {} using properties {}",
-                        channelId, properties.toString()));
+    private void deleteChannels(int amount, Collection<? extends ChannelBase> present) {
+        present.stream().sorted(Comparator.comparing(ChannelBase::getName).reversed())
+                .limit(amount).map(ChannelBase::getId).forEach(bot.getApiAsync()::deleteChannel);
     }
 
     public DynamicChannelConfig getConfig() {

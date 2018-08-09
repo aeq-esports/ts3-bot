@@ -43,7 +43,7 @@ public class StringTransformer {
         }
 
         if (lastGroupEnd != instance.length()) {
-            String substring = instance.substring(lastGroupEnd, instance.length());
+            String substring = instance.substring(lastGroupEnd);
             builder.append(mismatchTransformer.apply(substring));
         }
         instance = builder.toString();

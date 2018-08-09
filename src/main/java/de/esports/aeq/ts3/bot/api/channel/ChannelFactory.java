@@ -6,5 +6,5 @@ import java.util.Collection;
 
 public interface ChannelFactory {
 
-    ChannelTemplate getNext(Collection<ChannelBase> current);
+    ChannelTemplate getNext(Collection<? extends ChannelBase> current);
 }

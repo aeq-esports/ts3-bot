@@ -61,27 +61,16 @@ public class DynamicChannel extends BotListenerAdapter {
     public DynamicChannel(TS3Bot bot, DynamicChannelConfig config) {
         this.bot = bot;
         this.config = config;
-        channelNamePattern = buildChannelNamePattern(config.getNamePattern());
+        channelNamePattern = compileChannelNamePattern(config.getNamePattern());
     }
 
-    private Pattern buildChannelNamePattern(String pattern) {
+    private Pattern compileChannelNamePattern(String pattern) {
         String result = StringTransformer.of(pattern).replaceByRegex(COMMAND_REGEX,
                 getRegexForGroup(), Pattern::quote).toString();
         return Pattern.compile(result);
     }
 
-    private Function<String, String> getRegexForGroup() {
-        return s -> {
-            switch (s) {
-                case "{NUM}":
-                    return "[0-9]+";
-                case "{ALPHA}":
-                    return "[A-Z]+";
-                default:
-                    throw new IllegalArgumentException("Unknown group pattern: " + s);
-            }
-        };
-    }
+
 
     @Override
     public void onChannelCreate(ChannelCreateEvent e) {

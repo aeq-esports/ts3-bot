@@ -1,7 +1,7 @@
 package de.esports.aeq.ts3.bot.api;
 
 import com.github.theholywaffle.teamspeak3.api.event.*;
-import de.esports.aeq.ts3.bot.api.cache.ClientMoveEvent;
+import de.esports.aeq.ts3.bot.api.event.ClientMoveEvent;
 
 public class BotListenerAdapter implements BotListener {
 

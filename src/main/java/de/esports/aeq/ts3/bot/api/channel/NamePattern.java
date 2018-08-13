@@ -28,12 +28,18 @@ public class NamePattern {
 
     }
 
-    public static void of(String expression) {
-        new NamePattern().compile(expression);
+    public static NamePattern of(String expression) {
+        NamePattern pattern = new NamePattern();
+        pattern.compile(expression);
+        return pattern;
     }
 
     public Pattern getPattern() {
         return pattern;
+    }
+
+    public DynamicMatcher matcher() {
+        return new DynamicMatcher(this);
     }
 
     public String next(List<String> present) {

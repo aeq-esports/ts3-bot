@@ -6,15 +6,11 @@ import com.github.theholywaffle.teamspeak3.api.wrapper.Channel;
 import com.github.theholywaffle.teamspeak3.api.wrapper.ChannelBase;
 import de.esports.aeq.ts3.bot.api.BotListenerAdapter;
 import de.esports.aeq.ts3.bot.api.TS3Bot;
-import de.esports.aeq.ts3.bot.api.cache.ClientMoveEvent;
-import de.esports.aeq.ts3.bot.util.StringTransformer;
-import org.intellij.lang.annotations.Language;
+import de.esports.aeq.ts3.bot.api.event.ClientMoveEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.function.Function;
-import java.util.regex.Pattern;
 
 /**
  * Represents a channel that belongs to a group of dynamically generated channels.
@@ -42,38 +38,37 @@ public class DynamicChannel extends BotListenerAdapter {
 
     private static final Logger LOG = LoggerFactory.getLogger(DynamicChannel.class);
 
-    @Language("RegExp")
-    private static final String COMMAND_REGEX = "\\{.*}";
-
     private TS3Bot bot;
     private DynamicChannelConfig config;
+
+    private DynamicMatcher matcher;
+    private ChannelFactory factory;
 
     /**
      * Stores the current channel ids mapped to this dynamic channel.
      */
-    private Set<Integer> channelIds = new HashSet<>();
+    private Map<Integer, ChannelBase> channels = new HashMap<>();
 
-    /**
-     * Precompiled pattern to improve performance.
-     */
-    private Pattern channelNamePattern;
+    private Map<String, ChannelBase> channelsNames = new HashMap<>();
 
     public DynamicChannel(TS3Bot bot, DynamicChannelConfig config) {
         this.bot = bot;
         this.config = config;
-        channelNamePattern = compileChannelNamePattern(config.getNamePattern());
+        matcher = NamePattern.of(config.getNamePattern()).matcher();
+        buildChannelFactory();
     }
 
-    private Pattern compileChannelNamePattern(String pattern) {
-        String result = StringTransformer.of(pattern).replaceByRegex(COMMAND_REGEX,
-                getRegexForGroup(), Pattern::quote).toString();
-        return Pattern.compile(result);
+    private void buildChannelFactory() {
+        factory = ChannelFactory.builder(pattern)
+                .properties(config.getTemplate().asMap())
+                .build();
     }
-
-
 
     @Override
     public void onChannelCreate(ChannelCreateEvent e) {
+
+        // if same sub-channel update internal structure
+
         update(e.getChannelId());
     }
 
@@ -84,34 +79,36 @@ public class DynamicChannel extends BotListenerAdapter {
 
     @Override
     public void onClientMoveEvent(ClientMoveEvent event) {
+        // there is no new channel id if the client left
         if (!event.isLeaveEvent()) {
             update(event.getChannelId());
         }
-        bot.getCache().getPreviousMoveEvent(event).ifPresent(e -> update(e.getChannelId()));
+        bot.getService().findLastMoveEvent(event.getClientUId(), event.getTime())
+                .ifPresent(e -> update(e.getChannelId()));
     }
 
     public void update(Channel channel) {
         Objects.requireNonNull(channel);
         if (matches(channel)) {
-            channelIds.add(channel.getId());
+            channels.put(channel.getId(), channel);
             handleChanges();
         }
     }
 
     private void update(int channelId) {
         if (matches(channelId)) {
-            channelIds.add(channelId);
+            channels.add(channelId);
             handleChanges();
         }
     }
 
     private void update(Collection<Integer> channelIds) {
-        this.channelIds.stream().filter(this::matches).forEach(channelIds::add);
+        this.channels.stream().filter(this::matches).forEach(channelIds::add);
         handleChanges();
     }
 
     private void remove(int channelId) {
-        channelIds.remove(channelId);
+        channels.remove(channelId);
         bot.getApiAsync().deleteChannel(channelId);
     }
 
@@ -140,7 +137,7 @@ public class DynamicChannel extends BotListenerAdapter {
      */
     private boolean matches(ChannelBase channel) {
         return channel.getParentChannelId() == config.getChannelId() &&
-                channelNamePattern.matcher(channel.getName()).matches();
+                matcher.matches(channel.getName());
     }
 
     private void handleChanges() {
@@ -151,7 +148,7 @@ public class DynamicChannel extends BotListenerAdapter {
     }
 
     private void resize() {
-        Collection<Channel> channels = bot.getCache().getChannels(channelIds);
+        Collection<Channel> channels = bot.getCache().getChannels(this.channels);
 
         // The total size of each channel is not updated, so we have to fetch it
         Map<ChannelBase, Integer> map = new HashMap<>();
@@ -172,14 +169,27 @@ public class DynamicChannel extends BotListenerAdapter {
     }
 
     private void optimizeChannels() {
-        // TODO sort by name
+
     }
 
     private void createChannels(int amount, Collection<? extends ChannelBase> present) {
-        ChannelFactory factory = null;
         while (amount > 0) {
             ChannelTemplate template = factory.getNext(present);
-            bot.getApiAsync().createChannel(template.getName(), template.asMap());
+
+            String name = matcher.next();
+            template.setName(name);
+
+            int index = matcher.index();
+            if (index > 0) {
+                ChannelBase channel = channelsNames.get(matcher.get(index - 1));
+                index = channel.getOrder() + 1;
+            } else {
+                // order after the highest order?
+            }
+            template.setOrder(index);
+
+            bot.getApiAsync().createChannel(template.getName(), template.asMap())
+                    .onFailure(e -> matcher.remove(name));
             amount--;
         }
     }

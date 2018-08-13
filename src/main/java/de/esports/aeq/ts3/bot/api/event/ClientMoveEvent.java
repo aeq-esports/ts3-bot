@@ -1,4 +1,4 @@
-package de.esports.aeq.ts3.bot.api.cache;
+package de.esports.aeq.ts3.bot.api.event;
 
 import java.time.LocalDateTime;
 

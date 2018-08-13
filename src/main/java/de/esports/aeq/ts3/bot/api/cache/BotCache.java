@@ -17,10 +17,6 @@ public class BotCache {
         return 0;
     }
 
-    public Optional<ClientMoveEvent> getPreviousMoveEvent(ClientMoveEvent event) {
-        return Optional.empty();
-    }
-
     public Optional<Channel> getChannel(int channelId) {
         return Optional.empty();
     }

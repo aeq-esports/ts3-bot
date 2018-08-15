@@ -1,28 +1,30 @@
 package de.esports.aeq.ts3.bot.api.channel;
 
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class NamePattern {
 
-    private static final String GROUP = "(\\{.*})";
-    private static final String PLACEHOLDER = "${???}";
+    public static final String GROUP = "(\\{.*})";
+    public static final String PLACEHOLDER = "${???}";
 
     private static final int START = 1;
 
     private StringBuilder patternBuilder = new StringBuilder();
     private StringBuilder templateBuilder = new StringBuilder();
+
+    private Map<Function<String, ?>, Function<?, String>> mappers = new HashMap<>();
+
     private Type type;
     private boolean dynamic;
 
     private String template;
     private Pattern pattern;
-
-    private String current;
 
     private NamePattern() {
 
@@ -36,34 +38,22 @@ public class NamePattern {
         return pattern;
     }
 
-    public String next(List<String> present) {
+    private void addText(String text) {
+        templateBuilder.append(text);
+        patternBuilder.append(Pattern.quote(text));
+    }
 
-        if (present.isEmpty()) {
-            // TODO next = start number
+    private void addNumeric() {
+        if (dynamic) {
+            throw new IllegalArgumentException("Multiple dynamic parts are not supported");
         }
+        type = Type.NUMERIC;
+        templateBuilder.append(PLACEHOLDER);
+        patternBuilder.append("([0-9]+)");
 
-        Collections.sort(present);
+        addMapper(Integer::valueOf, i -> String.valueOf(i + 1));
 
-        List<String> arguments = new ArrayList<>();
-        for (String s : present) {
-            Matcher matcher = pattern.matcher(s);
-            if (matcher.matches()) {
-                arguments.add(matcher.group());
-            }
-        }
-
-        String next;
-        switch (type) {
-            case NUMERIC:
-                List<Integer> ints = arguments.stream().mapToInt(Integer::valueOf).boxed()
-                        .collect(Collectors.toList());
-                next = String.valueOf(getNextInt(ints, START));
-                break;
-            default:
-                throw new IllegalStateException(type.toString());
-        }
-
-        return template.replace(PLACEHOLDER, next);
+        dynamic = true;
     }
 
     private int getNextInt(List<Integer> arguments, int start) {
@@ -84,21 +74,6 @@ public class NamePattern {
             }
         }
         return next;
-    }
-
-    private void addText(String text) {
-        templateBuilder.append(text);
-        patternBuilder.append(Pattern.quote(text));
-    }
-
-    private void addNumeric() {
-        if (dynamic) {
-            throw new IllegalArgumentException("Multiple dynamic parts are not supported");
-        }
-        type = Type.NUMERIC;
-        templateBuilder.append(PLACEHOLDER);
-        patternBuilder.append("([0-9]+)");
-        dynamic = true;
     }
 
     private void compile() {
@@ -128,6 +103,15 @@ public class NamePattern {
         compile();
     }
 
+    private <T extends Comparable<T>> void addMapper(Function<String, T> mapper,
+            Function<T, String> next) {
+
+    }
+
+    public Map<Function<String, ?>, Function<List<?>, ?>> getMappers() {
+        return mappers;
+    }
+
     private void handleGroup(String group) {
         switch (group) {
             case "{NUM}":
@@ -138,7 +122,7 @@ public class NamePattern {
         }
     }
 
-    private enum Type {
+    public enum Type {
         NUMERIC
     }
 

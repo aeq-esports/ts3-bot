@@ -6,6 +6,7 @@ import com.github.theholywaffle.teamspeak3.TS3Config;
 import com.github.theholywaffle.teamspeak3.TS3Query;
 import com.github.theholywaffle.teamspeak3.api.reconnect.ConnectionHandler;
 import de.esports.aeq.ts3.bot.api.cache.BotCache;
+import de.esports.aeq.ts3.bot.service.api.BotService;
 import org.quartz.JobDetail;
 import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
@@ -28,10 +29,12 @@ public class TS3Bot {
     private Map<JobDetail, Trigger> jobs = new HashMap<>();
     private boolean jobsInitialized = false;
 
-    private BotCache cache; // TODO
+    private BotService service; // TODO
+    private BotCache cache;
 
-    public TS3Bot(BotConfig config) {
+    public TS3Bot(BotConfig config, BotService service) {
         this.config = config;
+        this.service = service;
         query = new TS3Query(createTS3Config());
     }
 
@@ -73,6 +76,10 @@ public class TS3Bot {
 
     public BotCache getCache() {
         return cache;
+    }
+
+    public BotService getService() {
+        return service;
     }
 
     private TS3Config createTS3Config() {

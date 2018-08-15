@@ -3,11 +3,15 @@ package de.esports.aeq.ts3.bot.api.channel;
 public class DynamicChannelConfig {
 
     private int channelId;
+
     private String namePattern;
+
     private int minimumChannels;
     private int maximumChannels;
     private int amountOfEmptyChannels;
     private int minimumClientsPerChannel;
+
+    private ChannelTemplate template;
 
     public DynamicChannelConfig(Builder builder) {
         // TODO
@@ -59,6 +63,10 @@ public class DynamicChannelConfig {
 
     public void setMinimumClientsPerChannel(int minimumClientsPerChannel) {
         this.minimumClientsPerChannel = minimumClientsPerChannel;
+    }
+
+    public ChannelTemplate getTemplate() {
+        return template;
     }
 
     public static class Builder {

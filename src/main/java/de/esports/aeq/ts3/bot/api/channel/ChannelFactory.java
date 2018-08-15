@@ -1,6 +1,7 @@
 package de.esports.aeq.ts3.bot.api.channel;
 
 import com.github.theholywaffle.teamspeak3.api.ChannelProperty;
+import com.github.theholywaffle.teamspeak3.api.wrapper.ChannelBase;
 import de.esports.aeq.ts3.bot.util.PasswordGenerator;
 
 import java.util.Collection;
@@ -20,15 +21,19 @@ public class ChannelFactory {
         this.generator = builder.generator;
     }
 
+    public static Builder builder(NamePattern pattern) {
+        return new Builder(pattern);
+    }
+
     public ChannelTemplate getNext() {
 
     }
 
-    public ChannelTemplate getNext(Collection<? extends ChannelTemplate> current) {
+    public ChannelTemplate getNext(Collection<? extends ChannelBase> channels) {
 
     }
 
-    public class Builder {
+    public static class Builder {
 
         private Map<ChannelProperty, String> properties = new EnumMap<>(ChannelProperty.class);
 

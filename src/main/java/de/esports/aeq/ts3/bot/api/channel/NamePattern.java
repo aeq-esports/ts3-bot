@@ -108,10 +108,6 @@ public class NamePattern {
 
     }
 
-    public Map<Function<String, ?>, Function<List<?>, ?>> getMappers() {
-        return mappers;
-    }
-
     private void handleGroup(String group) {
         switch (group) {
             case "{NUM}":

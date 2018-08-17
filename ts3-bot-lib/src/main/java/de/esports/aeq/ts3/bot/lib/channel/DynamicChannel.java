@@ -42,7 +42,6 @@ public class DynamicChannel extends BotListenerAdapter {
     private DynamicChannelConfig config;
 
     private NamePattern pattern;
-    private DynamicMatcher matcher;
     private ChannelFactory factory;
 
     /**
@@ -177,14 +176,11 @@ public class DynamicChannel extends BotListenerAdapter {
         while (amount > 0) {
             ChannelTemplate template = factory.getNext(present);
 
-            String name = matcher.next();
-            template.setName(name);
-
             // TODO: set order
             // template.setOrder(index);
 
             bot.getApiAsync().createChannel(template.getName(), template.asMap())
-                    .onFailure(e -> matcher.remove(name));
+                    .onFailure(e -> factory.getTypeIterator().remove(template.getName()));
             amount--;
         }
     }

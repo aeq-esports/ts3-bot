@@ -12,12 +12,12 @@ public class ChannelFactory {
 
     private Map<ChannelProperty, String> properties;
 
-    private NamePattern pattern;
+    private TypeIterator<String> typeIterator;
     private PasswordGenerator generator;
 
     private ChannelFactory(Builder builder) {
+        this.typeIterator = builder.pattern.matcher();
         this.properties = builder.properties;
-        this.pattern = builder.pattern;
         this.generator = builder.generator;
     }
 
@@ -26,11 +26,17 @@ public class ChannelFactory {
     }
 
     public ChannelTemplate getNext() {
-        return new ChannelTemplate();
+        ChannelTemplate template = new ChannelTemplate();
+        template.setName(typeIterator.next());
+        return template;
     }
 
     public ChannelTemplate getNext(Collection<? extends ChannelBase> channels) {
         return new ChannelTemplate();
+    }
+
+    public TypeIterator<String> getTypeIterator() {
+        return typeIterator;
     }
 
     public static class Builder {

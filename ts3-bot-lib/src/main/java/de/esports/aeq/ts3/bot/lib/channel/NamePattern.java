@@ -1,5 +1,8 @@
 package de.esports.aeq.ts3.bot.lib.channel;
 
+import de.esports.aeq.ts3.bot.lib.util.TypeIterator;
+import de.esports.aeq.ts3.bot.lib.util.TypeIterators;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 

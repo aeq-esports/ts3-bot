@@ -3,6 +3,7 @@ package de.esports.aeq.ts3.bot.lib.channel;
 import com.github.theholywaffle.teamspeak3.api.ChannelProperty;
 import com.github.theholywaffle.teamspeak3.api.wrapper.ChannelBase;
 import de.esports.aeq.ts3.bot.lib.util.PasswordGenerator;
+import de.esports.aeq.ts3.bot.lib.util.TypeIterator;
 
 import java.util.Collection;
 import java.util.EnumMap;

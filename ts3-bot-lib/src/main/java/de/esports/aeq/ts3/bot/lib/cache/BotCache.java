@@ -17,6 +17,10 @@ public class BotCache {
         return 0;
     }
 
+    public Optional<Channel> getChannel(String name) {
+        return Optional.empty();
+    }
+
     public Optional<Channel> getChannel(int channelId) {
         return Optional.empty();
     }

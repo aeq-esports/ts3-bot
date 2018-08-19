@@ -49,8 +49,6 @@ public class DynamicChannel extends BotListenerAdapter {
      */
     private Map<Integer, ChannelBase> channels = new HashMap<>();
 
-    private Map<String, ChannelBase> channelsNames = new HashMap<>();
-
     public DynamicChannel(TS3Bot bot, DynamicChannelConfig config) {
         this.bot = bot;
         this.config = config;
@@ -176,8 +174,24 @@ public class DynamicChannel extends BotListenerAdapter {
         while (amount > 0) {
             ChannelTemplate template = factory.getNext(present);
 
-            // TODO: set order
-            // template.setOrder(index);
+            String lower = factory.getTypeIterator().getLower(template.getName());
+            if (lower != null) {
+                // TODO: fetch with channel parent id and name
+                var channel = bot.getCache().getChannel(lower);
+                if (channel.isPresent()) {
+                    template.setOrder(channel.get().getOrder() + 1);
+                } else {
+                    LOG.error("Cannot fetch channel with name " + channel.get().getId());
+                    // ERROR, should break this iteration
+                }
+            } else {
+                /*
+                 * This is the first dynamic channel, so we give it the lowest order
+                 * possible. If any other non dynamic sub-channels exist, the whole dynamic
+                 * channel group will be created above them.
+                 */
+                template.setOrder(0);
+            }
 
             bot.getApiAsync().createChannel(template.getName(), template.asMap())
                     .onFailure(e -> factory.getTypeIterator().remove(template.getName()));

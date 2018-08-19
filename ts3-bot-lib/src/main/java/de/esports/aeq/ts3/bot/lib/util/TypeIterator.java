@@ -1,9 +1,9 @@
-package de.esports.aeq.ts3.bot.lib.channel;
+package de.esports.aeq.ts3.bot.lib.util;
 
 import java.util.List;
 
 
-public interface TypeIterator<T extends Comparable<T>> {
+public interface TypeIterator<T> {
 
     T next();
 

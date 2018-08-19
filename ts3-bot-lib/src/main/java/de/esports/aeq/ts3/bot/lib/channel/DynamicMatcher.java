@@ -1,5 +1,7 @@
 package de.esports.aeq.ts3.bot.lib.channel;
 
+import de.esports.aeq.ts3.bot.lib.util.TypeIterator;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
